@@ -36,4 +36,9 @@ public class UserController {
   public Set<String> getUsers() {
     return service.getUsers();
   }
+
+  @GetMapping("fireException")
+  public void fireException() {
+    service.fireException();
+  }
 }

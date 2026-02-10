@@ -24,4 +24,8 @@ public class UserService {
   public Set<String> getUsers() {
     return new HashSet<String>(users);
   }
+
+  public void fireException() {
+    throw new RuntimeException("Hello, Exception!!!");
+  }
 }

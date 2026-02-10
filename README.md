@@ -24,10 +24,10 @@ import java.util.Set;
 import org.springframework.stereotype.Service;
 
 /**
- * MiscService
+ * UserService
  */
 @Service
-public class MiscService {
+public class UserService {
 
   private final Set<String> users = new HashSet<>();
 
@@ -41,6 +41,10 @@ public class MiscService {
 
   public Set<String> getUsers() {
     return new HashSet<String>(users);
+  }
+
+  public void fireException() {
+    throw new RuntimeException("Hello, Exception!!!");
   }
 }
 ```
@@ -58,17 +62,17 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import dev.mikoto2000.springboot.logging.service.MiscService;
+import dev.mikoto2000.springboot.logging.service.UserService;
 import lombok.RequiredArgsConstructor;
 
 /**
- * MiscController
+ * UserController
  */
 @RequiredArgsConstructor
 @RestController
-public class MiscController {
+public class UserController {
 
-  private final MiscService service;
+  private final UserService service;
 
   @GetMapping("addUser")
   public void addUser(
@@ -87,6 +91,11 @@ public class MiscController {
   @GetMapping("getUsers")
   public Set<String> getUsers() {
     return service.getUsers();
+  }
+
+  @GetMapping("fireException")
+  public void fireException() {
+    service.fireException();
   }
 }
 ```
@@ -165,16 +174,18 @@ curl コマンドで、それぞれのエンドポイントにアクセスして
 curl http://localhost:8080/addUser?name=mikoto2000
 curl http://localhost:8080/getUsers
 curl http://localhost:8080/removeUser?name=mikoto2000
+curl http://localhost:8080/fireException
 curl http://localhost:8080/invalidEndpoint
 ```
 
 次のようなログが出力されます。
 
 ```
-2026-02-10T10:33:28.818Z  INFO 9018 --- [logging] [nio-8080-exec-2] ACCESS_LOG : ip=127.0.0.1, method=GET, request_url=/addUser, status=200, success=SUCCESS, time=1ms
-2026-02-10T10:33:28.832Z  INFO 9018 --- [logging] [nio-8080-exec-3] ACCESS_LOG : ip=127.0.0.1, method=GET, request_url=/getUsers, status=200, success=SUCCESS, time=1ms
-2026-02-10T10:33:28.844Z  INFO 9018 --- [logging] [nio-8080-exec-5] ACCESS_LOG : ip=127.0.0.1, method=GET, request_url=/removeUser, status=200, success=SUCCESS, time=1ms
-2026-02-10T10:33:28.855Z  INFO 9018 --- [logging] [nio-8080-exec-7] ACCESS_LOG : ip=127.0.0.1, method=GET, request_url=/invalidEndpoint, status=404, success=SUCCESS, time=1ms
+2026-02-10T20:59:38.021Z  INFO 51208 --- [logging] [nio-8080-exec-1] ACCESS_LOG : ip=127.0.0.1, method=GET, request_url=/addUser, status=200, success=SUCCESS, time=22ms
+2026-02-10T20:59:38.050Z  INFO 51208 --- [logging] [nio-8080-exec-2] ACCESS_LOG : ip=127.0.0.1, method=GET, request_url=/getUsers, status=200, success=SUCCESS, time=15ms
+2026-02-10T20:59:38.064Z  INFO 51208 --- [logging] [nio-8080-exec-4] ACCESS_LOG : ip=127.0.0.1, method=GET, request_url=/removeUser, status=200, success=SUCCESS, time=1ms
+2026-02-10T20:59:38.082Z  INFO 51208 --- [logging] [nio-8080-exec-5] ACCESS_LOG : ip=127.0.0.1, method=GET, request_url=/fireException, status=200, success=FAIL, time=6ms
+2026-02-10T20:59:38.109Z  INFO 51208 --- [logging] [nio-8080-exec-6] ACCESS_LOG : ip=127.0.0.1, method=GET, request_url=/invalidEndpoint, status=404, success=SUCCESS, time=3ms
 ```
 
 - `ip`: アクセス元の IP アドレス ※実務では、プロキシ配下等の場合に IP の取得方法にひと工夫が必要です（今回は割愛します）
@@ -188,3 +199,243 @@ curl http://localhost:8080/invalidEndpoint
 Filter でアクセスログを取得しているため、コントローラーが呼ばれない場合でも記録できます。
 
 
+## メソッドの開始・終了ログの追加
+
+業務ログの一歩手前として、各メソッドの開始・終了ログを出力します。
+
+### `pom.xml` の修正
+
+開始・終了ログは、 AOP(Aspect Oriented Programming) の機能を使って実装していきます。
+まずは Spring Boot で AOP が使えるように依存を追加します。
+
+`pom.xml`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<parent>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-parent</artifactId>
+		<version>4.0.2</version>
+		<relativePath/> <!-- lookup parent from repository -->
+	</parent>
+	<groupId>dev.mikoto2000.springboot</groupId>
+	<artifactId>logging</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<name>logging</name>
+	<description>Logging demo project for Spring Boot</description>
+	<url/>
+	<licenses>
+		<license/>
+	</licenses>
+	<developers>
+		<developer/>
+	</developers>
+	<scm>
+		<connection/>
+		<developerConnection/>
+		<tag/>
+		<url/>
+	</scm>
+	<properties>
+		<java.version>21</java.version>
+	</properties>
+	<dependencies>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-webmvc</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-devtools</artifactId>
+			<scope>runtime</scope>
+			<optional>true</optional>
+		</dependency>
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+			<optional>true</optional>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-webmvc-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<!-- 追加ここから -->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-aspectj</artifactId>
+		</dependency>
+		<!-- 追加ここまで -->
+	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<configuration>
+					<annotationProcessorPaths>
+						<path>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+						</path>
+					</annotationProcessorPaths>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+				<configuration>
+					<excludes>
+						<exclude>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+						</exclude>
+					</excludes>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
+
+</project>
+```
+
+### ログ出力コード実装
+
+次に、ログを出力するコードを実装します。次のコードを追加してください。
+
+`src/main/java/dev/mikoto2000/springboot/logging/aop/LoggingAspect.java`:
+
+```java
+package dev.mikoto2000.springboot.logging.aop;
+
+import org.aspectj.lang.ProceedingJoinPoint;
+import org.aspectj.lang.annotation.Around;
+import org.aspectj.lang.annotation.Aspect;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
+
+@Aspect
+@Component
+public class LoggingAspect {
+
+  private static final Logger log = LoggerFactory.getLogger(LoggingAspect.class);
+
+  @Around(
+    "within(dev.mikoto2000.springboot.logging.service..*)"
+    + " || within(dev.mikoto2000.springboot.logging.controller..*)"
+  )
+  public Object logMethod(ProceedingJoinPoint pjp) throws Throwable {
+
+    // メソッド情報取得
+    String className = pjp.getTarget().getClass().getSimpleName();
+    String methodName = pjp.getSignature().getName();
+
+    log.debug("START {}#{}", className, methodName);
+
+    // 時間計測開始
+    long startTime = System.currentTimeMillis();
+    try {
+
+      Object result = pjp.proceed();
+
+      // 時間計測終了
+      long endTime = System.currentTimeMillis();
+
+      log.debug("END   {}#{}, time={}ms", className, methodName, endTime - startTime);
+
+      return result;
+
+    } catch (Throwable e) {
+
+      // 時間計測終了
+      long endTime = System.currentTimeMillis();
+
+      log.error("ERROR {}#{}, time={}", className, methodName, endTime - startTime, e);
+
+      throw e;
+    }
+  }
+}
+```
+
+#### `@Aspect` と `@Around` について
+
+
+##### `@Aspect`
+
+AOP（Aspect Oriented Programming）では、ログ出力やトランザクション管理などの「共通処理」を業務ロジックとは別のクラスとして実装します。
+
+この共通処理を定義するクラスには、`@Aspect` アノテーションを付与します。
+
+`@Aspect` を付けることで、このクラスが「AOP の処理を定義するクラス（Aspect）」として Spring に認識されます。
+
+##### `@Around`
+
+`@Around` は、対象となるメソッドの実行を「前後から包み込む」ためのアノテーションです。
+
+今回のサンプルでは、次のように定義することで、Service や Controller のメソッドを実行する前後の処理を記述しています。
+
+```
+  "within(dev.mikoto2000.springboot.logging.service..*)"
+  + " || within(dev.mikoto2000.springboot.logging.controller..*)"
+```
+
+この記述方法は `Pointcut` と呼ばれるものですが、今回は詳細には立ち入りません。
+
+### ログレベルの調整
+
+開始・終了ログをデバッグログで出力するように実装したため、デフォルトでは表示されません。
+デバッグログが表示されるように `application.yaml` を修正し、ログレベルを指定しましょう。
+
+`src/main/resources/application.yaml`:
+
+```yaml
+spring:
+  application:
+    name: logging
+
+# 追加ここから
+logging:
+  level:
+    dev.mikoto2000.springboot.logging: DEBUG
+# 追加ここまで
+```
+
+これで、パッケージ `dev.mikoto2000.springboot.logging` 以下のクラスはデバッグレベルまでのログが出力されます。
+
+## 動作確認
+
+ここまで来たらもう一度動作確認をしてみましょう。
+
+```sh
+curl http://localhost:8080/addUser?name=mikoto2000
+curl http://localhost:8080/getUsers
+curl http://localhost:8080/removeUser?name=mikoto2000
+curl http://localhost:8080/fireException
+curl http://localhost:8080/invalidEndpoint
+```
+
+次のようなログが表示されるようになっています。
+
+```
+2026-02-10T20:59:38.017Z DEBUG 51208 --- [logging] [nio-8080-exec-1] d.m.s.logging.aop.LoggingAspect : START UserController#addUser
+2026-02-10T20:59:38.017Z DEBUG 51208 --- [logging] [nio-8080-exec-1] d.m.s.logging.aop.LoggingAspect : START UserService#addUser
+2026-02-10T20:59:38.017Z DEBUG 51208 --- [logging] [nio-8080-exec-1] d.m.s.logging.aop.LoggingAspect : END   UserService#addUser, time=0ms
+2026-02-10T20:59:38.017Z DEBUG 51208 --- [logging] [nio-8080-exec-1] d.m.s.logging.aop.LoggingAspect : END   UserController#addUser, time=0ms
+```
+
+
+
+## 参考資料
+
+TODO
+
+- Filter
+- AOP
+- Pointcut
