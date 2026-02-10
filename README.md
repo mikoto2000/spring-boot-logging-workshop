@@ -1,4 +1,4 @@
-# Spring Boot ロギング入門 - アクセスログ・監査ログを集める
+# Spring Boot ロギング入門 - アクセスログ・業務ログを集める
 
 ## Spring Initializr
 
@@ -6,12 +6,20 @@
 
 ## アプリの作成
 
-`if1`, `if2`, `if3` それぞれにアクセスすると、 `1`, `2`, `3` が返却されるアプリを作成します。
+このアプリでは、簡易的なユーザー管理APIを用意します。
+
+- `/addUser`: ユーザーを追加する
+- `/removeUser`: ユーザーを削除する
+- `/getUsers`: 登録済みユーザー一覧を取得する
+
 
 ### サービスの作成
 
 ```java
 package dev.mikoto2000.springboot.logging.service;
+
+import java.util.HashSet;
+import java.util.Set;
 
 import org.springframework.stereotype.Service;
 
@@ -20,16 +28,19 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class MiscService {
-  public String service1() {
-    return "1";
+
+  private final Set<String> users = new HashSet<>();
+
+  public void addUser(String name) {
+    users.add(name);
   }
 
-  public String service2() {
-    return "2";
+  public void removeUser(String name) {
+    users.remove(name);
   }
 
-  public String service3() {
-    return "3";
+  public Set<String> getUsers() {
+    return new HashSet<String>(users);
   }
 }
 ```
@@ -41,7 +52,10 @@ public class MiscService {
 ```java
 package dev.mikoto2000.springboot.logging.controller;
 
+import java.util.Set;
+
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import dev.mikoto2000.springboot.logging.service.MiscService;
@@ -56,19 +70,23 @@ public class MiscController {
 
   private final MiscService service;
 
-  @GetMapping("if1")
-  public String if1() {
-    return service.service1();
+  @GetMapping("addUser")
+  public void addUser(
+      @RequestParam String name
+      ) {
+    service.addUser(name);
   }
 
-  @GetMapping("if2")
-  public String if2() {
-    return service.service2();
+  @GetMapping("removeUser")
+  public void removeUser(
+      @RequestParam String name
+      ) {
+    service.removeUser(name);
   }
 
-  @GetMapping("if3")
-  public String if3() {
-    return service.service3();
+  @GetMapping("getUsers")
+  public Set<String> getUsers() {
+    return service.getUsers();
   }
 }
 ```
@@ -144,26 +162,26 @@ curl コマンドで、それぞれのエンドポイントにアクセスして
 ついでに存在しないエンドポイントにもアクセスしてみます。
 
 ```sh
-curl http://localhost:8080/if1
-curl http://localhost:8080/if2
-curl http://localhost:8080/if3
-curl http://localhost:8080/if4
+curl http://localhost:8080/addUser?name=mikoto2000
+curl http://localhost:8080/getUsers
+curl http://localhost:8080/removeUser?name=mikoto2000
+curl http://localhost:8080/invalidEndpoint
 ```
 
 次のようなログが出力されます。
 
 ```
-2026-02-10T09:46:35.433Z  INFO 2737 --- [logging] [nio-8080-exec-1] ACCESS_LOG : ip=127.0.0.1, method=GET, request_url=/if1, status=200 success=SUCCESS, time=4ms
-2026-02-10T09:46:35.459Z  INFO 2737 --- [logging] [nio-8080-exec-2] ACCESS_LOG : ip=127.0.0.1, method=GET, request_url=/if2, status=200 success=SUCCESS, time=2ms
-2026-02-10T09:46:35.472Z  INFO 2737 --- [logging] [nio-8080-exec-3] ACCESS_LOG : ip=127.0.0.1, method=GET, request_url=/if3, status=200 success=SUCCESS, time=0ms
-2026-02-10T09:46:47.861Z  INFO 2737 --- [logging] [nio-8080-exec-4] ACCESS_LOG : ip=127.0.0.1, method=GET, request_url=/if4, status=404 success=SUCCESS, time=8ms
+2026-02-10T10:33:28.818Z  INFO 9018 --- [logging] [nio-8080-exec-2] ACCESS_LOG : ip=127.0.0.1, method=GET, request_url=/addUser, status=200, success=SUCCESS, time=1ms
+2026-02-10T10:33:28.832Z  INFO 9018 --- [logging] [nio-8080-exec-3] ACCESS_LOG : ip=127.0.0.1, method=GET, request_url=/getUsers, status=200, success=SUCCESS, time=1ms
+2026-02-10T10:33:28.844Z  INFO 9018 --- [logging] [nio-8080-exec-5] ACCESS_LOG : ip=127.0.0.1, method=GET, request_url=/removeUser, status=200, success=SUCCESS, time=1ms
+2026-02-10T10:33:28.855Z  INFO 9018 --- [logging] [nio-8080-exec-7] ACCESS_LOG : ip=127.0.0.1, method=GET, request_url=/invalidEndpoint, status=404, success=SUCCESS, time=1ms
 ```
 
 - `ip`: アクセス元の IP アドレス ※実務では、プロキシ配下等の場合に IP の取得方法にひと工夫が必要です（今回は割愛します）
 - `method`: HTTP メソッド（GET / POST など）
 - `request_url`: アクセスされたパス
 - `status`: HTTP ステータスコード（200 / 404 など）
-- `success`: アプリケーションが例外なく処理を完了したかどうか
+- `success`: アプリケーションが例外なく処理を完了したかどうか ※ 「HTTP ステータス」の「成功」ではなく、「アプリの内部処理の成否」であることに注意
 - `time`: 処理にかかった時間（ミリ秒）
 
 また、注目してほしいのは 404 で失敗しているものもちゃんとログに記録されているところです。

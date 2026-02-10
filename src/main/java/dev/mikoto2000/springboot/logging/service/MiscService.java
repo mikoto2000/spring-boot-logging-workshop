@@ -1,5 +1,8 @@
 package dev.mikoto2000.springboot.logging.service;
 
+import java.util.HashSet;
+import java.util.Set;
+
 import org.springframework.stereotype.Service;
 
 /**
@@ -7,15 +10,18 @@ import org.springframework.stereotype.Service;
  */
 @Service
 public class MiscService {
-  public String service1() {
-    return "1";
+
+  private final Set<String> users = new HashSet<>();
+
+  public void addUser(String name) {
+    users.add(name);
   }
 
-  public String service2() {
-    return "2";
+  public void removeUser(String name) {
+    users.remove(name);
   }
 
-  public String service3() {
-    return "3";
+  public Set<String> getUsers() {
+    return new HashSet<String>(users);
   }
 }
