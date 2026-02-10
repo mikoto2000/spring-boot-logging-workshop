@@ -6,17 +6,17 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import dev.mikoto2000.springboot.logging.service.MiscService;
+import dev.mikoto2000.springboot.logging.service.UserService;
 import lombok.RequiredArgsConstructor;
 
 /**
- * MiscController
+ * UserController
  */
 @RequiredArgsConstructor
 @RestController
-public class MiscController {
+public class UserController {
 
-  private final MiscService service;
+  private final UserService service;
 
   @GetMapping("addUser")
   public void addUser(

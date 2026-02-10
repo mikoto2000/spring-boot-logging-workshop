@@ -6,10 +6,10 @@ import java.util.Set;
 import org.springframework.stereotype.Service;
 
 /**
- * MiscService
+ * UserService
  */
 @Service
-public class MiscService {
+public class UserService {
 
   private final Set<String> users = new HashSet<>();
 
