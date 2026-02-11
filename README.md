@@ -622,9 +622,7 @@ public class UserService {
 
 ## 参考資料
 
-TODO
+- [フィルター :: Spring Framework - リファレンス](https://spring.pleiades.io/spring-framework/reference/web/webmvc/filters.html)
+- [AOP の概念 :: Spring Framework - リファレンス](https://spring.pleiades.io/spring-framework/reference/core/aop/introduction-defn.html)
+- [Chapter 8: Mapped Diagnostic Context](https://logback.qos.ch/manual/mdc.html)
 
-- Filter
-- AOP
-- Pointcut
-- MDC
