@@ -199,9 +199,9 @@ curl http://localhost:8080/invalidEndpoint
 Filter でアクセスログを取得しているため、コントローラーが呼ばれない場合でも記録できます。
 
 
-## メソッドの開始・終了ログの追加
+## Controller の開始・終了ログを追加
 
-業務ログの一歩手前として、各メソッドの開始・終了ログを出力します。
+業務ログの一種として、Controller の開始・終了ログを出力します。これは境界ログとも呼ばれます。
 
 ### `pom.xml` の修正
 
@@ -327,8 +327,7 @@ public class LoggingAspect {
   private static final Logger log = LoggerFactory.getLogger(LoggingAspect.class);
 
   @Around(
-    "within(dev.mikoto2000.springboot.logging.service..*)"
-    + " || within(dev.mikoto2000.springboot.logging.controller..*)"
+    "within(dev.mikoto2000.springboot.logging.controller..*)"
   )
   public Object logMethod(ProceedingJoinPoint pjp) throws Throwable {
 
@@ -336,7 +335,7 @@ public class LoggingAspect {
     String className = pjp.getTarget().getClass().getSimpleName();
     String methodName = pjp.getSignature().getName();
 
-    log.debug("START {}#{}", className, methodName);
+    log.info("START {}#{}", className, methodName);
 
     // 時間計測開始
     long startTime = System.currentTimeMillis();
@@ -347,7 +346,7 @@ public class LoggingAspect {
       // 時間計測終了
       long endTime = System.currentTimeMillis();
 
-      log.debug("END   {}#{}, time={}ms", className, methodName, endTime - startTime);
+      log.info("END   {}#{}, time={}ms", className, methodName, endTime - startTime);
 
       return result;
 
@@ -382,32 +381,11 @@ AOP（Aspect Oriented Programming）では、ログ出力やトランザクシ�
 今回のサンプルでは、次のように定義することで、Service や Controller のメソッドを実行する前後の処理を記述しています。
 
 ```
-  "within(dev.mikoto2000.springboot.logging.service..*)"
-  + " || within(dev.mikoto2000.springboot.logging.controller..*)"
+  "within(dev.mikoto2000.springboot.logging.controller..*)"
 ```
 
 この記述方法は `Pointcut` と呼ばれるものですが、今回は詳細には立ち入りません。
 
-### ログレベルの調整
-
-開始・終了ログをデバッグログで出力するように実装したため、デフォルトでは表示されません。
-デバッグログが表示されるように `application.yaml` を修正し、ログレベルを指定しましょう。
-
-`src/main/resources/application.yaml`:
-
-```yaml
-spring:
-  application:
-    name: logging
-
-# 追加ここから
-logging:
-  level:
-    dev.mikoto2000.springboot.logging: DEBUG
-# 追加ここまで
-```
-
-これで、パッケージ `dev.mikoto2000.springboot.logging` 以下のクラスはデバッグレベルまでのログが出力されます。
 
 ## 動作確認
 
@@ -415,19 +393,13 @@ logging:
 
 ```sh
 curl http://localhost:8080/addUser?name=mikoto2000
-curl http://localhost:8080/getUsers
-curl http://localhost:8080/removeUser?name=mikoto2000
-curl http://localhost:8080/fireException
-curl http://localhost:8080/invalidEndpoint
 ```
 
 次のようなログが表示されるようになっています。
 
 ```
-2026-02-10T20:59:38.017Z DEBUG 51208 --- [logging] [nio-8080-exec-1] d.m.s.logging.aop.LoggingAspect : START UserController#addUser
-2026-02-10T20:59:38.017Z DEBUG 51208 --- [logging] [nio-8080-exec-1] d.m.s.logging.aop.LoggingAspect : START UserService#addUser
-2026-02-10T20:59:38.017Z DEBUG 51208 --- [logging] [nio-8080-exec-1] d.m.s.logging.aop.LoggingAspect : END   UserService#addUser, time=0ms
-2026-02-10T20:59:38.017Z DEBUG 51208 --- [logging] [nio-8080-exec-1] d.m.s.logging.aop.LoggingAspect : END   UserController#addUser, time=0ms
+2026-02-10T20:59:38.017Z INFO 51208 --- [logging] [nio-8080-exec-1] d.m.s.logging.aop.LoggingAspect : START UserController#addUser
+2026-02-10T20:59:38.017Z INFO 51208 --- [logging] [nio-8080-exec-1] d.m.s.logging.aop.LoggingAspect : END   UserController#addUser, time=0ms
 ```
 
 ## MDC(Mapped Diagnostic Context) の追加
@@ -551,15 +523,11 @@ curl http://localhost:8080/removeUser?name=mikoto2000
 次のようなログが出力されます。
 
 ```
-2026-02-11 00:22:56.046 [http-nio-8080-exec-3] [92a4a2a9-0db6-4072-bc81-2547f7d48da5] [dummy] DEBUG d.m.s.logging.aop.LoggingAspect - START UserController#addUser
-2026-02-11 00:22:56.047 [http-nio-8080-exec-3] [92a4a2a9-0db6-4072-bc81-2547f7d48da5] [dummy] DEBUG d.m.s.logging.aop.LoggingAspect - START UserService#addUser
-2026-02-11 00:22:56.047 [http-nio-8080-exec-3] [92a4a2a9-0db6-4072-bc81-2547f7d48da5] [dummy] DEBUG d.m.s.logging.aop.LoggingAspect - END   UserService#addUser, time=0ms
-2026-02-11 00:22:56.047 [http-nio-8080-exec-3] [92a4a2a9-0db6-4072-bc81-2547f7d48da5] [dummy] DEBUG d.m.s.logging.aop.LoggingAspect - END   UserController#addUser, time=0ms
+2026-02-11 00:22:56.046 [http-nio-8080-exec-3] [92a4a2a9-0db6-4072-bc81-2547f7d48da5] [dummy] INFO  d.m.s.logging.aop.LoggingAspect - START UserController#addUser
+2026-02-11 00:22:56.047 [http-nio-8080-exec-3] [92a4a2a9-0db6-4072-bc81-2547f7d48da5] [dummy] INFO  d.m.s.logging.aop.LoggingAspect - END   UserController#addUser, time=0ms
 2026-02-11 00:22:56.047 [http-nio-8080-exec-3] [92a4a2a9-0db6-4072-bc81-2547f7d48da5] [dummy] INFO  ACCESS_LOG - ip=127.0.0.1, method=GET, request_url=/addUser, status=200, success=SUCCESS, time=1ms
-2026-02-11 00:24:08.395 [http-nio-8080-exec-5] [7154ca6d-5764-43ae-a045-956f6b0617ad] [dummy] DEBUG d.m.s.logging.aop.LoggingAspect - START UserController#removeUser
-2026-02-11 00:24:08.395 [http-nio-8080-exec-5] [7154ca6d-5764-43ae-a045-956f6b0617ad] [dummy] DEBUG d.m.s.logging.aop.LoggingAspect - START UserService#removeUser
-2026-02-11 00:24:08.395 [http-nio-8080-exec-5] [7154ca6d-5764-43ae-a045-956f6b0617ad] [dummy] DEBUG d.m.s.logging.aop.LoggingAspect - END   UserService#removeUser, time=0ms
-2026-02-11 00:24:08.395 [http-nio-8080-exec-5] [7154ca6d-5764-43ae-a045-956f6b0617ad] [dummy] DEBUG d.m.s.logging.aop.LoggingAspect - END   UserController#removeUser, time=0ms
+2026-02-11 00:24:08.395 [http-nio-8080-exec-5] [7154ca6d-5764-43ae-a045-956f6b0617ad] [dummy] INFO  d.m.s.logging.aop.LoggingAspect - START UserController#removeUser
+2026-02-11 00:24:08.395 [http-nio-8080-exec-5] [7154ca6d-5764-43ae-a045-956f6b0617ad] [dummy] INFO  d.m.s.logging.aop.LoggingAspect - END   UserController#removeUser, time=0ms
 2026-02-11 00:24:08.396 [http-nio-8080-exec-5] [7154ca6d-5764-43ae-a045-956f6b0617ad] [dummy] INFO  ACCESS_LOG - ip=127.0.0.1, method=GET, request_url=/removeUser, status=200, success=SUCCESS, time=2ms
 ```
 
@@ -588,6 +556,69 @@ if (auth != null && auth.isAuthenticated()) {
   MDC.put("user", auth.getName());
 }
 ```
+
+## 業務ログを完成させる
+
+Controller の開始・終了ログを出力したことで、クラス名とメソッド名から「大体何をやっているか」は分かるようになりましたが、業務ログでは 5W1H が重要です。
+Service にログを入れることで、業務ログを完成させましょう。
+
+今回は例として Service 層に「誰を追加・削除したか」というログを追加します。
+業務ではログ設計・ログ方針に応じてログを出力するようにしましょう。
+
+Controller では処理の境界を、Service では業務上の意味を持つイベントをログに記録するというイメージです。
+
+
+`src/main/java/dev/mikoto2000/springboot/logging/service/UserService.java`:
+
+```java
+package dev.mikoto2000.springboot.logging.service;
+
+import java.util.HashSet;
+import java.util.Set;
+
+import org.springframework.stereotype.Service;
+
+import lombok.extern.slf4j.Slf4j;
+
+/**
+ * UserService
+ */
+@Service
+@Slf4j
+public class UserService {
+
+  private final Set<String> users = new HashSet<>();
+
+  public void addUser(String name) {
+    /* 修正ここから */
+    if (users.add(name)) {
+      log.info("Add user: name={}", name);
+    } else {
+      log.warn("Add user failed: name={}", name);
+    }
+    /* 修正ここまで */
+  }
+
+  public void removeUser(String name) {
+    /* 修正ここから */
+    if (users.remove(name)) {
+      log.info("Remove user: name={}", name);
+    } else {
+      log.warn("Remove user failed: name={}", name);
+    }
+    /* 修正ここまで */
+  }
+
+  public Set<String> getUsers() {
+    return new HashSet<String>(users);
+  }
+
+  public void fireException() {
+    throw new RuntimeException("Hello, Exception!!!");
+  }
+}
+```
+
 
 ## 参考資料
 

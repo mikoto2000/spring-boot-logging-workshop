@@ -5,20 +5,31 @@ import java.util.Set;
 
 import org.springframework.stereotype.Service;
 
+import lombok.extern.slf4j.Slf4j;
+
 /**
  * UserService
  */
 @Service
+@Slf4j
 public class UserService {
 
   private final Set<String> users = new HashSet<>();
 
   public void addUser(String name) {
-    users.add(name);
+    if (users.add(name)) {
+      log.info("Add user: name={}", name);
+    } else {
+      log.warn("Add user failed: name={}", name);
+    }
   }
 
   public void removeUser(String name) {
-    users.remove(name);
+    if (users.remove(name)) {
+      log.info("Remove user: name={}", name);
+    } else {
+      log.warn("Remove user failed: name={}", name);
+    }
   }
 
   public Set<String> getUsers() {

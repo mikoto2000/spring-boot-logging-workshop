@@ -1,7 +1,3 @@
 spring:
   application:
     name: logging
-
-logging:
-  level:
-    dev.mikoto2000.springboot.logging: DEBUG

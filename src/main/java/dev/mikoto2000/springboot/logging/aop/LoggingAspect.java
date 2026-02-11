@@ -14,8 +14,7 @@ public class LoggingAspect {
   private static final Logger log = LoggerFactory.getLogger(LoggingAspect.class);
 
   @Around(
-    "within(dev.mikoto2000.springboot.logging.service..*)"
-    + " || within(dev.mikoto2000.springboot.logging.controller..*)"
+    "within(dev.mikoto2000.springboot.logging.controller..*)"
   )
   public Object logMethod(ProceedingJoinPoint pjp) throws Throwable {
 
@@ -23,7 +22,7 @@ public class LoggingAspect {
     String className = pjp.getTarget().getClass().getSimpleName();
     String methodName = pjp.getSignature().getName();
 
-    log.debug("START {}#{}", className, methodName);
+    log.info("START {}#{}", className, methodName);
 
     // 時間計測開始
     long startTime = System.currentTimeMillis();
@@ -34,7 +33,7 @@ public class LoggingAspect {
       // 時間計測終了
       long endTime = System.currentTimeMillis();
 
-      log.debug("END   {}#{}, time={}ms", className, methodName, endTime - startTime);
+      log.info("END   {}#{}, time={}ms", className, methodName, endTime - startTime);
 
       return result;
 
