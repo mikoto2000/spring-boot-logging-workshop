@@ -430,7 +430,164 @@ curl http://localhost:8080/invalidEndpoint
 2026-02-10T20:59:38.017Z DEBUG 51208 --- [logging] [nio-8080-exec-1] d.m.s.logging.aop.LoggingAspect : END   UserController#addUser, time=0ms
 ```
 
+## MDC(Mapped Diagnostic Context) の追加
 
+アクセスログ、開始・終了ログの追加をしてきましたが、このままではそれぞれのログのつながりがわかりません。
+アクセスログ、開始・終了ログのつながりをわかるようにするために、 MDC を導入していきます。
+
+### MDC を使用するようにコードを修正
+
+`src/main/java/dev/mikoto2000/springboot/logging/filter/AccessLogFilter.java` を、次のように修正します。
+
+`src/main/java/dev/mikoto2000/springboot/logging/filter/AccessLogFilter.java`:
+
+```java
+package dev.mikoto2000.springboot.logging.filter;
+
+import java.io.IOException;
+import java.util.UUID;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
+@Component
+@Order(Ordered.LOWEST_PRECEDENCE)
+public class AccessLogFilter extends OncePerRequestFilter {
+
+    private static final Logger accessLogger = LoggerFactory.getLogger("ACCESS_LOG");
+
+    @Override
+    protected void doFilterInternal(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            FilterChain chain)
+            throws ServletException, IOException {
+
+        /* 追加ここから */
+        // MDC に記録する値を取得
+        String user = "dummy"; // Spring Security と連携すると取得できる
+        String traceId = UUID.randomUUID().toString();
+
+        // MDC に値をセット
+        MDC.put("user", user);
+        MDC.put("traceId", traceId);
+        /* 追加ここまで */
+
+        long start = System.currentTimeMillis();
+
+        // 接続元 IP 取得
+        String ip = request.getRemoteAddr();
+
+        // 成功・失敗フラグ
+        boolean success = false;
+
+        try {
+            chain.doFilter(request, response);
+            success = true;
+        } finally {
+
+            long time = System.currentTimeMillis() - start;
+
+            accessLogger.info("ip={}, method={}, request_url={}, status={}, success={}, time={}ms",
+                ip,
+                request.getMethod(),
+                request.getRequestURI(),
+                response.getStatus(),
+                success ? "SUCCESS" : "FAIL",
+                time);
+
+            /* 追加ここから */
+            // MDC クリア
+            MDC.clear();
+            /* 追加ここまで */
+        }
+    }
+}
+```
+
+### MDC を表示するように Logback を設定
+
+MDC を表示したい場合には、 `%X{xxx}` 形式で、 PATTERN に記述します。
+
+`src/main/resources/logback-spring.xml`:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- Spring Bootのデフォルト設定を読み込む（defaults.xmlで変数が定義される） -->
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <!-- コンソールの出力パターンのみを上書き定義する -->
+    <property name="CONSOLE_LOG_PATTERN" value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [%X{traceId:-}] [%X{user:-}] %-5level %logger{36} - %msg%n"/>
+
+    <!-- デフォルトのコンソールアペンダーを読み込む（上のpropertyが適用される） -->
+    <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE" />
+    </root>
+</configuration>
+```
+
+### MDC の動作確認
+
+もう一度 curl コマンドで、エンドポイントにアクセスしてみましょう。
+
+```sh
+curl http://localhost:8080/addUser?name=mikoto2000
+curl http://localhost:8080/removeUser?name=mikoto2000
+```
+
+次のようなログが出力されます。
+
+```
+2026-02-11 00:22:56.046 [http-nio-8080-exec-3] [92a4a2a9-0db6-4072-bc81-2547f7d48da5] [dummy] DEBUG d.m.s.logging.aop.LoggingAspect - START UserController#addUser
+2026-02-11 00:22:56.047 [http-nio-8080-exec-3] [92a4a2a9-0db6-4072-bc81-2547f7d48da5] [dummy] DEBUG d.m.s.logging.aop.LoggingAspect - START UserService#addUser
+2026-02-11 00:22:56.047 [http-nio-8080-exec-3] [92a4a2a9-0db6-4072-bc81-2547f7d48da5] [dummy] DEBUG d.m.s.logging.aop.LoggingAspect - END   UserService#addUser, time=0ms
+2026-02-11 00:22:56.047 [http-nio-8080-exec-3] [92a4a2a9-0db6-4072-bc81-2547f7d48da5] [dummy] DEBUG d.m.s.logging.aop.LoggingAspect - END   UserController#addUser, time=0ms
+2026-02-11 00:22:56.047 [http-nio-8080-exec-3] [92a4a2a9-0db6-4072-bc81-2547f7d48da5] [dummy] INFO  ACCESS_LOG - ip=127.0.0.1, method=GET, request_url=/addUser, status=200, success=SUCCESS, time=1ms
+2026-02-11 00:24:08.395 [http-nio-8080-exec-5] [7154ca6d-5764-43ae-a045-956f6b0617ad] [dummy] DEBUG d.m.s.logging.aop.LoggingAspect - START UserController#removeUser
+2026-02-11 00:24:08.395 [http-nio-8080-exec-5] [7154ca6d-5764-43ae-a045-956f6b0617ad] [dummy] DEBUG d.m.s.logging.aop.LoggingAspect - START UserService#removeUser
+2026-02-11 00:24:08.395 [http-nio-8080-exec-5] [7154ca6d-5764-43ae-a045-956f6b0617ad] [dummy] DEBUG d.m.s.logging.aop.LoggingAspect - END   UserService#removeUser, time=0ms
+2026-02-11 00:24:08.395 [http-nio-8080-exec-5] [7154ca6d-5764-43ae-a045-956f6b0617ad] [dummy] DEBUG d.m.s.logging.aop.LoggingAspect - END   UserController#removeUser, time=0ms
+2026-02-11 00:24:08.396 [http-nio-8080-exec-5] [7154ca6d-5764-43ae-a045-956f6b0617ad] [dummy] INFO  ACCESS_LOG - ip=127.0.0.1, method=GET, request_url=/removeUser, status=200, success=SUCCESS, time=2ms
+```
+
+紐づいている開始・終了ログとアクセスログに、同じ traceId が付与されていることがわかります。
+
+このようにすると、「traceId で grep をかけると見たいリクエストのみが時系列で追える」などのメリットが出てきます。
+
+### MDC 補足
+
+MDC は、「スレッドごとに記録できる Map」と思ってもらうとわかりやすいと思います。
+MDC に値をセットすると、そのスレッドで出力するログに、セットした値を含められます。
+
+Tomcat は「1 リクエスト 1 スレッド」ですので、ちょうど良く「リクエストごとに一意な値」を設定することができるというわけです。
+
+
+### user 補足
+
+今回は、 `user` に `dummy` という値をリテラルで設定していましたが、
+本来であれば次のコードのように Spring Security と連携し、ユーザー情報を取得します。
+
+```java
+Authentication auth =
+  SecurityContextHolder.getContext().getAuthentication();
+
+if (auth != null && auth.isAuthenticated()) {
+  MDC.put("user", auth.getName());
+}
+```
 
 ## 参考資料
 
@@ -439,3 +596,4 @@ TODO
 - Filter
 - AOP
 - Pointcut
+- MDC

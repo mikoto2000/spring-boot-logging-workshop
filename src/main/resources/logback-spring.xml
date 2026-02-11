@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    <!-- Spring Bootのデフォルト設定を読み込む（defaults.xmlで変数が定義される） -->
+    <include resource="org/springframework/boot/logging/logback/defaults.xml"/>
+
+    <!-- コンソールの出力パターンのみを上書き定義する -->
+    <property name="CONSOLE_LOG_PATTERN" value="%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] [%X{traceId:-}] [%X{user:-}] %-5level %logger{36} - %msg%n"/>
+
+    <!-- デフォルトのコンソールアペンダーを読み込む（上のpropertyが適用される） -->
+    <include resource="org/springframework/boot/logging/logback/console-appender.xml"/>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE" />
+    </root>
+</configuration>
+

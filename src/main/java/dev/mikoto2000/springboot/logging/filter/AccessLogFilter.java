@@ -1,9 +1,11 @@
 package dev.mikoto2000.springboot.logging.filter;
 
 import java.io.IOException;
+import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
@@ -27,6 +29,14 @@ public class AccessLogFilter extends OncePerRequestFilter {
             FilterChain chain)
             throws ServletException, IOException {
 
+        // MDC に記録する値を取得
+        String user = "dummy"; // Spring Security と連携すると取得できる
+        String traceId = UUID.randomUUID().toString();
+
+        // MDC に値をセット
+        MDC.put("user", user);
+        MDC.put("traceId", traceId);
+
         long start = System.currentTimeMillis();
 
         // 接続元 IP 取得
@@ -49,6 +59,9 @@ public class AccessLogFilter extends OncePerRequestFilter {
                 response.getStatus(),
                 success ? "SUCCESS" : "FAIL",
                 time);
+
+            // MDC クリア
+            MDC.clear();
         }
     }
 }
